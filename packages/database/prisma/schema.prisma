@@ -1,0 +1,867 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+}
+
+enum ContentStatus {
+  DRAFT
+  SUBMITTED
+  IN_REVIEW
+  REVISION_REQUIRED
+  APPROVED
+  PUBLISHED
+  ARCHIVED
+  REJECTED
+  NEEDS_ALIGNMENT_REVIEW
+}
+
+enum StimulusType {
+  TEXT
+  IMAGE
+  TABLE
+  AUDIO
+  TEXT_IMAGE
+  TEXT_TABLE
+  TEXT_AUDIO
+  MIXED
+}
+
+enum QuestionMode {
+  INDEPENDENT
+  STIMULUS_GROUP
+}
+
+enum Difficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+enum OptionLabel {
+  A
+  B
+  C
+  D
+  E
+}
+
+enum ReviewDecisionType {
+  APPROVE
+  REQUEST_REVISION
+  REJECT
+  EDIT_AND_FORWARD
+}
+
+enum AssetType {
+  IMAGE
+  AUDIO
+  DOCUMENT
+}
+
+enum ImportStatus {
+  UPLOADED
+  QUEUED
+  PARSING
+  VALIDATING
+  WAITING_CONFIRMATION
+  IMPORTING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum AssignmentStatus {
+  ASSIGNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum ValidationTaskStatus {
+  ASSIGNED
+  IN_REVIEW
+  DONE
+  CANCELLED
+}
+
+enum AttemptStatus {
+  NOT_STARTED
+  ACTIVE
+  PAUSED
+  SUBMITTED
+  EXPIRED
+  TERMINATED
+}
+
+enum ExamSessionStatus {
+  WAITING
+  ACTIVE
+  PAUSED
+  CLOSED
+}
+
+enum PackageQuestionSelectionMode {
+  ALL
+  RANDOM_ONE
+}
+
+enum ScoreDisplayMode {
+  HIDDEN_UNTIL_PUBLISHED
+  SHOW_AFTER_SUBMIT_FINAL
+  STATUS_ONLY
+}
+
+model User {
+  id              String             @id @default(cuid())
+  email           String             @unique
+  name            String
+  passwordHash    String?
+  phone           String?
+  isActive        Boolean            @default(true)
+  lastLoginAt     DateTime?
+  roles           UserRole[]
+  sessions        UserSession[]
+  blueprintVersions BlueprintVersion[] @relation("BlueprintVersionCreator")
+  stimulusVersions  StimulusVersion[]  @relation("StimulusVersionCreator")
+  questionVersions  QuestionVersion[]  @relation("QuestionVersionCreator")
+  reviewsMade       ReviewDecision[]   @relation("ReviewDecisionReviewer")
+  writingAssignmentsAssigned QuestionWritingAssignment[] @relation("QuestionWritingAssignmentAssignee")
+  writingAssignmentsCreated  QuestionWritingAssignment[] @relation("QuestionWritingAssignmentAssigner")
+  validationAssignmentsAssigned QuestionValidationAssignment[] @relation("QuestionValidationAssignmentAssignee")
+  validationAssignmentsCreated  QuestionValidationAssignment[] @relation("QuestionValidationAssignmentAssigner")
+  imports            ImportJob[]        @relation("ImportRequester")
+  auditLogs          AuditLog[]         @relation("AuditActor")
+  supervisorAssignments SupervisorAssignment[] @relation("SupervisorAssignments")
+  supervisorIncidents   SupervisorIncident[]   @relation("SupervisorIncidentCreator")
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+}
+
+
+model UserSession {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model Role {
+  id          String           @id @default(cuid())
+  code        String           @unique
+  name        String
+  users       UserRole[]
+  permissions RolePermission[]
+}
+
+model Permission {
+  id    String           @id @default(cuid())
+  code  String           @unique
+  name  String
+  roles RolePermission[]
+}
+
+model UserRole {
+  userId String
+  roleId String
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role   Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  @@id([userId, roleId])
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  @@id([roleId, permissionId])
+}
+
+model SelectionPeriod {
+  id          String        @id @default(cuid())
+  code        String        @unique
+  name        String
+  startsAt    DateTime?
+  endsAt      DateTime?
+  blueprints  Blueprint[]
+  examPackages ExamPackage[]
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+model Blueprint {
+  id                String             @id @default(cuid())
+  code              String             @unique
+  periodId          String
+  period            SelectionPeriod    @relation(fields: [periodId], references: [id])
+  status            ContentStatus      @default(DRAFT)
+  currentVersionId  String?            @unique
+  currentVersion    BlueprintVersion?  @relation("BlueprintCurrentVersion", fields: [currentVersionId], references: [id])
+  versions          BlueprintVersion[] @relation("BlueprintVersions")
+  questions         Question[]
+  packageRules      ExamPackageBlueprintRule[]
+  writingAssignments QuestionWritingAssignment[]
+  stimulus          Stimulus?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+}
+
+model BlueprintVersion {
+  id            String      @id @default(cuid())
+  blueprintId   String
+  blueprint     Blueprint   @relation("BlueprintVersions", fields: [blueprintId], references: [id], onDelete: Cascade)
+  currentFor    Blueprint?  @relation("BlueprintCurrentVersion")
+  versionNumber Int
+  titleHtml     String
+  testGroupHtml String?
+  testTopicHtml String?
+  competencyHtml String
+  indicatorHtml String
+  materialHtml  String?
+  gridHtml      String?
+  confidentialLabel String @default("SANGAT RAHASIA")
+  cognitiveLevel String?
+  expectedQuestionCount Int @default(1)
+  questionMode QuestionMode @default(INDEPENDENT)
+  changeSummaryHtml String?
+  createdById   String
+  createdBy     User        @relation("BlueprintVersionCreator", fields: [createdById], references: [id])
+  createdAt     DateTime    @default(now())
+  questionVersions QuestionVersion[]
+  reviewAssignments ReviewAssignment[]
+  @@unique([blueprintId, versionNumber])
+}
+
+model Stimulus {
+  id               String            @id @default(cuid())
+  code             String            @unique
+  blueprintId      String?           @unique
+  blueprint        Blueprint?        @relation(fields: [blueprintId], references: [id], onDelete: Cascade)
+  type             StimulusType
+  language         String            @default("id")
+  status           ContentStatus     @default(DRAFT)
+  currentVersionId String?           @unique
+  currentVersion   StimulusVersion?  @relation("StimulusCurrentVersion", fields: [currentVersionId], references: [id])
+  versions         StimulusVersion[] @relation("StimulusVersions")
+  questions        Question[]
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+}
+
+model StimulusVersion {
+  id                 String      @id @default(cuid())
+  stimulusId         String
+  stimulus           Stimulus    @relation("StimulusVersions", fields: [stimulusId], references: [id], onDelete: Cascade)
+  currentFor         Stimulus?   @relation("StimulusCurrentVersion")
+  versionNumber      Int
+  titleHtml          String
+  instructionsHtml   String
+  contentHtml        String
+  contentJson        Json?
+  source              String?
+  copyrightNote       String?
+  expectedQuestions   Int?
+  changeSummaryHtml   String?
+  createdById         String
+  createdBy           User        @relation("StimulusVersionCreator", fields: [createdById], references: [id])
+  createdAt           DateTime     @default(now())
+  questionVersions    QuestionVersion[]
+  assets              StimulusAsset[]
+  reviewAssignments   ReviewAssignment[]
+  @@unique([stimulusId, versionNumber])
+}
+
+model Question {
+  id               String            @id @default(cuid())
+  code             String            @unique
+  blueprintId      String
+  blueprint        Blueprint         @relation(fields: [blueprintId], references: [id])
+  stimulusId       String?
+  stimulus         Stimulus?         @relation(fields: [stimulusId], references: [id])
+  status           ContentStatus     @default(DRAFT)
+  currentVersionId String?           @unique
+  currentVersion   QuestionVersion?  @relation("QuestionCurrentVersion", fields: [currentVersionId], references: [id])
+  versions         QuestionVersion[] @relation("QuestionVersions")
+  examPackageDraftItems ExamPackageQuestion[]
+  validationAssignments QuestionValidationAssignment[]
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+}
+
+model QuestionVersion {
+  id                    String           @id @default(cuid())
+  questionId            String
+  question              Question         @relation("QuestionVersions", fields: [questionId], references: [id], onDelete: Cascade)
+  currentFor            Question?        @relation("QuestionCurrentVersion")
+  versionNumber         Int
+  blueprintVersionId    String
+  blueprintVersion      BlueprintVersion @relation(fields: [blueprintVersionId], references: [id])
+  stimulusVersionId     String?
+  stimulusVersion       StimulusVersion? @relation(fields: [stimulusVersionId], references: [id])
+  orderInStimulus       Int?
+  stemHtml              String
+  stemJson              Json?
+  explanationHtml       String?
+  explanationJson       Json?
+  difficulty            Difficulty
+  answerKey             OptionLabel
+  keyChanged            Boolean          @default(false)
+  changeSummaryHtml     String?
+  createdById           String
+  createdBy             User             @relation("QuestionVersionCreator", fields: [createdById], references: [id])
+  createdAt             DateTime         @default(now())
+  options               QuestionOption[]
+  assets                QuestionAsset[]
+  reviewAssignments     ReviewAssignment[]
+  @@unique([questionId, versionNumber])
+  @@index([stimulusVersionId, orderInStimulus])
+}
+
+model QuestionOption {
+  id                String          @id @default(cuid())
+  questionVersionId String
+  questionVersion   QuestionVersion @relation(fields: [questionVersionId], references: [id], onDelete: Cascade)
+  label             OptionLabel
+  contentHtml       String
+  contentJson       Json?
+  sortOrder         Int
+  assets            OptionAsset[]
+  @@unique([questionVersionId, label])
+}
+
+model Asset {
+  id               String          @id @default(cuid())
+  type             AssetType
+  storagePath      String          @unique
+  originalFilename String
+  mimeType         String
+  sizeBytes        Int
+  width            Int?
+  height           Int?
+  durationSeconds  Int?
+  checksum         String
+  altText          String?
+  caption          String?
+  source           String?
+  copyrightNote    String?
+  stimulusLinks    StimulusAsset[]
+  questionLinks    QuestionAsset[]
+  optionLinks      OptionAsset[]
+  createdAt        DateTime        @default(now())
+}
+
+model StimulusAsset {
+  stimulusVersionId String
+  assetId           String
+  placement         String          @default("BODY")
+  sortOrder         Int             @default(0)
+  stimulusVersion   StimulusVersion @relation(fields: [stimulusVersionId], references: [id], onDelete: Cascade)
+  asset             Asset           @relation(fields: [assetId], references: [id])
+  @@id([stimulusVersionId, assetId])
+}
+
+model QuestionAsset {
+  questionVersionId String
+  assetId           String
+  placement         String          @default("STEM")
+  sortOrder         Int             @default(0)
+  questionVersion   QuestionVersion @relation(fields: [questionVersionId], references: [id], onDelete: Cascade)
+  asset             Asset           @relation(fields: [assetId], references: [id])
+  @@id([questionVersionId, assetId])
+}
+
+model OptionAsset {
+  questionOptionId String
+  assetId          String
+  sortOrder        Int            @default(0)
+  questionOption   QuestionOption @relation(fields: [questionOptionId], references: [id], onDelete: Cascade)
+  asset            Asset          @relation(fields: [assetId], references: [id])
+  @@id([questionOptionId, assetId])
+}
+
+model QuestionWritingAssignment {
+  id           String           @id @default(cuid())
+  blueprintId  String
+  blueprint    Blueprint        @relation(fields: [blueprintId], references: [id], onDelete: Cascade)
+  assignedToId String
+  assignedTo   User             @relation("QuestionWritingAssignmentAssignee", fields: [assignedToId], references: [id])
+  assignedById String?
+  assignedBy   User?            @relation("QuestionWritingAssignmentAssigner", fields: [assignedById], references: [id], onDelete: SetNull)
+  targetCount  Int              @default(1)
+  noteHtml     String?
+  status       AssignmentStatus @default(ASSIGNED)
+  dueAt        DateTime?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  @@unique([blueprintId, assignedToId])
+  @@index([assignedToId])
+  @@index([status])
+}
+
+model QuestionValidationAssignment {
+  id           String               @id @default(cuid())
+  questionId   String
+  question     Question             @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  assignedToId String
+  assignedTo   User                 @relation("QuestionValidationAssignmentAssignee", fields: [assignedToId], references: [id])
+  assignedById String?
+  assignedBy   User?                @relation("QuestionValidationAssignmentAssigner", fields: [assignedById], references: [id], onDelete: SetNull)
+  noteHtml     String?
+  status       ValidationTaskStatus @default(ASSIGNED)
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+
+  @@unique([questionId, assignedToId])
+  @@index([assignedToId])
+  @@index([status])
+}
+
+model ReviewWorkflow {
+  id          String        @id @default(cuid())
+  code        String        @unique
+  name        String
+  contentType String
+  stages      ReviewStage[]
+  createdAt   DateTime      @default(now())
+}
+
+model ReviewStage {
+  id                  String         @id @default(cuid())
+  workflowId          String
+  workflow            ReviewWorkflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  orderNumber         Int
+  name                String
+  roleCode            String
+  canEdit             Boolean        @default(false)
+  approvalsRequired   Int            @default(1)
+  assignments         ReviewAssignment[]
+  @@unique([workflowId, orderNumber])
+}
+
+model ReviewAssignment {
+  id                 String            @id @default(cuid())
+  stageId            String
+  stage              ReviewStage       @relation(fields: [stageId], references: [id])
+  blueprintVersionId String?
+  blueprintVersion   BlueprintVersion? @relation(fields: [blueprintVersionId], references: [id])
+  stimulusVersionId  String?
+  stimulusVersion    StimulusVersion?  @relation(fields: [stimulusVersionId], references: [id])
+  questionVersionId  String?
+  questionVersion    QuestionVersion?  @relation(fields: [questionVersionId], references: [id])
+  assignedToId       String?
+  decisions          ReviewDecision[]
+  createdAt          DateTime          @default(now())
+}
+
+model ReviewDecision {
+  id                String             @id @default(cuid())
+  assignmentId      String
+  assignment        ReviewAssignment   @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  reviewerId        String
+  reviewer          User               @relation("ReviewDecisionReviewer", fields: [reviewerId], references: [id])
+  decision          ReviewDecisionType
+  notesHtml         String
+  changedFields     Json?
+  createdAt         DateTime           @default(now())
+}
+
+model ImportJob {
+  id                 String       @id @default(cuid())
+  type               String
+  originalFilename   String
+  status             ImportStatus @default(UPLOADED)
+  totalRows          Int          @default(0)
+  validRows          Int          @default(0)
+  warningRows        Int          @default(0)
+  invalidRows        Int          @default(0)
+  requestedById      String
+  requestedBy        User         @relation("ImportRequester", fields: [requestedById], references: [id])
+  rows               ImportRow[]
+  createdAt          DateTime     @default(now())
+  completedAt        DateTime?
+}
+
+model ImportRow {
+  id          String    @id @default(cuid())
+  importJobId String
+  importJob   ImportJob @relation(fields: [importJobId], references: [id], onDelete: Cascade)
+  rowNumber   Int
+  entityType  String
+  entityCode  String?
+  status      String
+  payload     Json
+  messages    Json?
+}
+
+model ExamPackage {
+  id               String             @id @default(cuid())
+  code             String             @unique
+  name             String
+  subjectName      String             @default("Umum")
+  scheduledStartAt DateTime?
+  scheduledEndAt   DateTime?
+  periodId         String
+  period           SelectionPeriod    @relation(fields: [periodId], references: [id])
+  status           ContentStatus      @default(DRAFT)
+  durationMinutes  Int
+  shuffleBlocks    Boolean            @default(false)
+  shuffleQuestions Boolean            @default(false)
+  shuffleOptions   Boolean            @default(false)
+  publishedAt      DateTime?
+  items            ExamPackageItem[]
+  sessions         ExamSession[]
+  draftQuestions   ExamPackageQuestion[]
+  blueprintRules   ExamPackageBlueprintRule[]
+  fields           ExamPackageField[]
+  supervisorAssignments SupervisorAssignment[]
+  rooms            ExamRoom[]
+  scoringPolicy    ExamScoringPolicy?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+}
+
+
+model ExamScoringPolicy {
+  id               String           @id @default(cuid())
+  examPackageId    String           @unique
+  examPackage      ExamPackage      @relation(fields: [examPackageId], references: [id], onDelete: Cascade)
+  correctScore     Decimal          @default(4) @db.Decimal(10, 2)
+  wrongScore       Decimal          @default(-1) @db.Decimal(10, 2)
+  unansweredScore  Decimal          @default(0) @db.Decimal(10, 2)
+  displayMode      ScoreDisplayMode @default(HIDDEN_UNTIL_PUBLISHED)
+  isPublished      Boolean          @default(false)
+  publishedAt      DateTime?
+  lockedAt         DateTime?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  @@index([displayMode])
+  @@index([isPublished])
+}
+
+model ExamPackageField {
+  id              String                     @id @default(cuid())
+  examPackageId   String
+  examPackage     ExamPackage                @relation(fields: [examPackageId], references: [id], onDelete: Cascade)
+  name            String
+  description     String?
+  durationMinutes Int
+  sortOrder       Int                        @default(0)
+  blueprintRules  ExamPackageBlueprintRule[]
+  createdAt       DateTime                   @default(now())
+  updatedAt       DateTime                   @updatedAt
+
+  @@unique([examPackageId, sortOrder])
+  @@index([examPackageId])
+}
+
+model ExamPackageBlueprintRule {
+  id                 String                       @id @default(cuid())
+  examPackageId      String
+  examPackage        ExamPackage                  @relation(fields: [examPackageId], references: [id], onDelete: Cascade)
+  examPackageFieldId String?
+  examPackageField   ExamPackageField?            @relation(fields: [examPackageFieldId], references: [id], onDelete: Cascade)
+  blueprintId        String
+  blueprint          Blueprint                    @relation(fields: [blueprintId], references: [id], onDelete: Cascade)
+  selectionMode      PackageQuestionSelectionMode @default(RANDOM_ONE)
+  sortOrder          Int                          @default(0)
+  createdAt          DateTime                     @default(now())
+
+  @@unique([examPackageId, blueprintId])
+  @@index([blueprintId])
+  @@index([examPackageFieldId])
+}
+
+model ExamPackageQuestion {
+  id            String      @id @default(cuid())
+  examPackageId String
+  examPackage   ExamPackage @relation(fields: [examPackageId], references: [id], onDelete: Cascade)
+  questionId    String
+  question      Question    @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  sortOrder     Int         @default(0)
+  createdAt     DateTime    @default(now())
+
+  @@unique([examPackageId, questionId])
+  @@index([questionId])
+}
+
+model PublishedStimulus {
+  id               String              @id @default(cuid())
+  sourceVersionId  String
+  titleHtml        String
+  instructionsHtml String
+  contentHtml      String
+  contentJson      Json?
+  checksum         String
+  questions        PublishedQuestion[]
+  packageItems     ExamPackageItem[]
+}
+
+model PublishedQuestion {
+  id                  String              @id @default(cuid())
+  sourceVersionId     String
+  publishedStimulusId String?
+  publishedStimulus   PublishedStimulus?  @relation(fields: [publishedStimulusId], references: [id])
+  orderInStimulus     Int?
+  stemHtml            String
+  stemJson            Json?
+  answerKey           OptionLabel
+  checksum            String
+  options             PublishedOption[]
+  packageItems        ExamPackageItem[]
+  answers             ParticipantAnswer[]
+}
+
+model PublishedOption {
+  id                  String            @id @default(cuid())
+  publishedQuestionId String
+  publishedQuestion   PublishedQuestion @relation(fields: [publishedQuestionId], references: [id], onDelete: Cascade)
+  label               OptionLabel
+  contentHtml         String
+  contentJson         Json?
+  sortOrder           Int
+  answers             ParticipantAnswer[]
+  @@unique([publishedQuestionId, label])
+}
+
+model ExamPackageItem {
+  id                    String             @id @default(cuid())
+  examPackageId         String
+  examPackage           ExamPackage        @relation(fields: [examPackageId], references: [id], onDelete: Cascade)
+  sortOrder             Int
+  itemType              String
+  publishedStimulusId   String?
+  publishedStimulus     PublishedStimulus? @relation(fields: [publishedStimulusId], references: [id])
+  publishedQuestionId   String?
+  publishedQuestion     PublishedQuestion? @relation(fields: [publishedQuestionId], references: [id])
+  startNumber           Int?
+  endNumber             Int?
+  keepTogether          Boolean            @default(true)
+  shuffleInside         Boolean            @default(false)
+  @@unique([examPackageId, sortOrder])
+}
+
+model Participant {
+  id           String               @id @default(cuid())
+  externalId   String               @unique
+  username     String?              @unique
+  name         String
+  nik          String?              @unique
+  photoUrl     String?
+  email        String?
+  passwordHash String?
+  isActive     Boolean              @default(true)
+  lastLoginAt  DateTime?
+  sessions     ExamSession[]
+  authSessions ParticipantSession[]
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+}
+
+model ParticipantSession {
+  id            String      @id @default(cuid())
+  participantId String
+  participant   Participant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  tokenHash     String      @unique
+  expiresAt     DateTime
+  revokedAt     DateTime?
+  ipAddress     String?
+  userAgent     String?
+  createdAt     DateTime    @default(now())
+
+  @@index([participantId])
+  @@index([expiresAt])
+}
+
+model ExamRoom {
+  id             String                 @id @default(cuid())
+  code           String                 @unique
+  name           String
+  location       String?
+  capacity       Int?
+  isActive       Boolean                @default(true)
+  examPackageId  String?
+  examPackage    ExamPackage?           @relation(fields: [examPackageId], references: [id], onDelete: SetNull)
+  sessions       ExamSession[]
+  supervisorAssignments SupervisorAssignment[]
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+
+  @@index([isActive])
+  @@index([examPackageId])
+}
+
+model ExamSession {
+  id             String        @id @default(cuid())
+  examPackageId  String
+  examPackage    ExamPackage   @relation(fields: [examPackageId], references: [id])
+  participantId  String
+  participant    Participant   @relation(fields: [participantId], references: [id])
+  roomId         String?
+  room           ExamRoom?     @relation(fields: [roomId], references: [id], onDelete: SetNull)
+  startsAt       DateTime
+  endsAt         DateTime
+  status         ExamSessionStatus @default(WAITING)
+  attempt        Attempt?
+  incidents      SupervisorIncident[]
+  supervisorAssignments SupervisorAssignment[]
+  createdAt      DateTime      @default(now())
+  @@unique([examPackageId, participantId])
+  @@index([roomId])
+  @@index([status])
+}
+
+model Attempt {
+  id             String              @id @default(cuid())
+  examSessionId  String              @unique
+  examSession    ExamSession         @relation(fields: [examSessionId], references: [id])
+  status         AttemptStatus       @default(NOT_STARTED)
+  startedAt      DateTime?
+  submittedAt    DateTime?
+  lastSavedAt    DateTime?
+  answers        ParticipantAnswer[]
+  score          Score?
+  questionSnapshots AttemptQuestionSnapshot[]
+  securityEvents ExamSecurityEvent[]
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+}
+
+
+model AttemptQuestionSnapshot {
+  id                       String      @id @default(cuid())
+  attemptId                String
+  attempt                  Attempt     @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  sourceQuestionId         String
+  sourceQuestionVersionId  String
+  blueprintCode            String
+  questionCode             String
+  fieldName                String      @default("Umum")
+  fieldOrder               Int         @default(1)
+  displayOrder             Int
+  groupOrder               Int
+  stimulusCode             String?
+  stimulusTitleHtml        String?
+  stimulusInstructionsHtml String?
+  stimulusContentHtml      String?
+  stemHtml                 String
+  optionsJson              Json
+  answerKey                OptionLabel
+  selectedLabel            OptionLabel?
+  isFlagged                Boolean     @default(false)
+  savedAt                  DateTime    @updatedAt
+  createdAt                DateTime    @default(now())
+
+  @@unique([attemptId, sourceQuestionId])
+  @@unique([attemptId, displayOrder])
+  @@index([attemptId, groupOrder])
+}
+
+model ExamSecurityEvent {
+  id        String   @id @default(cuid())
+  attemptId String
+  attempt   Attempt  @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  eventType String
+  detail    Json?
+  createdAt DateTime @default(now())
+
+  @@index([attemptId, createdAt])
+}
+
+model ParticipantAnswer {
+  id                    String             @id @default(cuid())
+  attemptId             String
+  attempt               Attempt            @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  publishedQuestionId   String
+  publishedQuestion     PublishedQuestion  @relation(fields: [publishedQuestionId], references: [id])
+  selectedOptionId      String?
+  selectedOption        PublishedOption?   @relation(fields: [selectedOptionId], references: [id])
+  isFlagged             Boolean            @default(false)
+  savedAt               DateTime           @updatedAt
+  @@unique([attemptId, publishedQuestionId])
+}
+
+model Score {
+  id            String   @id @default(cuid())
+  attemptId     String   @unique
+  attempt       Attempt  @relation(fields: [attemptId], references: [id])
+  correctCount  Int
+  wrongCount    Int
+  unansweredCount Int
+  rawScore      Decimal  @db.Decimal(10, 2)
+  finalScore    Decimal  @db.Decimal(10, 2)
+  calculatedAt  DateTime @default(now())
+}
+
+
+model SupervisorAssignment {
+  id            String       @id @default(cuid())
+  supervisorId  String
+  supervisor    User         @relation("SupervisorAssignments", fields: [supervisorId], references: [id], onDelete: Cascade)
+  examPackageId String?
+  examPackage   ExamPackage? @relation(fields: [examPackageId], references: [id], onDelete: Cascade)
+  examSessionId String?
+  examSession   ExamSession? @relation(fields: [examSessionId], references: [id], onDelete: Cascade)
+  roomId        String?
+  room          ExamRoom?    @relation(fields: [roomId], references: [id], onDelete: SetNull)
+  roomName      String?
+  createdAt     DateTime     @default(now())
+
+  @@unique([supervisorId, examPackageId])
+  @@unique([supervisorId, examSessionId])
+  @@index([examPackageId])
+  @@index([examSessionId])
+  @@index([roomId])
+}
+
+model SupervisorIncident {
+  id            String      @id @default(cuid())
+  examSessionId String
+  examSession   ExamSession @relation(fields: [examSessionId], references: [id], onDelete: Cascade)
+  supervisorId  String?
+  supervisor    User?       @relation("SupervisorIncidentCreator", fields: [supervisorId], references: [id], onDelete: SetNull)
+  note          String
+  category      String      @default("PELANGGARAN")
+  createdAt     DateTime    @default(now())
+
+  @@index([examSessionId, createdAt])
+  @@index([supervisorId])
+}
+
+
+model AppSetting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([key])
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  actorId     String?
+  actor       User?    @relation("AuditActor", fields: [actorId], references: [id])
+  action      String
+  entityType  String
+  entityId    String?
+  metadata    Json?
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}

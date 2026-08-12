@@ -1,0 +1,70 @@
+OLIMPIADE FISIKA V.1.0 - INSTALASI AWAL
+
+1. Install dependency:
+   npm install
+
+2. Buat file environment:
+   cp .env.example .env
+
+3. Edit konfigurasi:
+   nano .env
+
+4. Pastikan DATABASE_URL, AUTH_SECRET, ADMIN_EMAIL, ADMIN_PASSWORD, dan ADMIN_NAME sudah sesuai.
+
+5. Generate database dan akun awal:
+   npm run setup:local
+
+6. Jalankan aplikasi:
+   npm run dev
+
+URL lokal:
+- Admin      : http://localhost:3000
+- Peserta    : http://localhost:3001
+- Pengawas   : http://localhost:3002
+
+Login awal:
+- Email/Username : admin@olimpiadefisika.local
+- Password       : Admin12345!
+
+Catatan:
+Ganti password awal dan AUTH_SECRET sebelum aplikasi dipakai secara production.
+
+CATATAN PEMBARUAN V.1.0 - PENSKORAN
+- Menu baru: Admin > Operasional Ujian > Penskoran & Publikasi.
+- Setelah update source, jalankan kembali: npm run setup:local
+- Perintah tersebut akan menjalankan prisma generate dan prisma db push agar tabel kebijakan penskoran ikut dibuat.
+- Mode aman default: skor peserta disembunyikan sampai admin menekan Publikasikan & Kunci Hasil Final.
+- Jika dipilih mode skor langsung, skor tampil sebagai nilai final otomatis dan sistem menolak perubahan mode setelah ada peserta selesai.
+
+CATATAN FITUR SIMULASI & MODE UJIAN
+===================================
+1. Simulasi fisika interaktif disarankan disimpan di GitHub Pages.
+   Contoh URL:
+   https://username.github.io/olimpiade-fisika-simulasi/simulations/gerak-parabola/
+
+2. Di aplikasi admin, buka menu Simulasi Soal untuk melihat struktur repository dan contoh iframe.
+
+3. Pada form Kisi-kisi atau Tulis Soal, gunakan panel Simulasi GitHub Pages untuk menyisipkan simulasi ke stimulus atau stem soal.
+
+4. Saat peserta menekan Mulai/Lanjutkan Ujian, sistem akan mencoba masuk fullscreen otomatis. Jika browser menolak, peserta tetap dapat menekan tombol Aktifkan Mode Ujian pada halaman ujian.
+
+5. Di halaman ujian peserta tersedia tombol Refresh dan Logout. Jawaban yang sudah tersimpan tetap aman. Jika pengawas melakukan Reset Login/Force Logout, peserta akan diarahkan untuk keluar dan masuk kembali setelah diizinkan pengawas.
+
+CATATAN FITUR TEMA GLOBAL
+=========================
+1. Tema aplikasi sekarang disimpan di PostgreSQL melalui tabel AppSetting dengan key global_color_palette.
+
+2. Admin mengubah tema dari menu:
+   Admin > Pengaturan > Tema tampilan global
+
+3. Setelah tombol Simpan tema global ditekan, tema berlaku untuk:
+   - Portal Admin
+   - Portal Peserta
+   - Portal Pengawas
+
+4. Portal lain akan membaca tema dari database ketika halaman dibuka/refresh dan melakukan sinkronisasi berkala melalui endpoint /api/app-theme.
+
+5. Setelah update source, jalankan kembali:
+   npm run setup:local
+
+6. Perintah tersebut akan menambahkan tabel AppSetting dan membuat tema default Fisika Biru melalui seed.

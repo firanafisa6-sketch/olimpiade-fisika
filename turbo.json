@@ -1,0 +1,60 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "globalEnv": [
+    "DATABASE_URL",
+    "DATABASE_URL_UNPOOLED",
+    "POSTGRES_URL",
+    "POSTGRES_PRISMA_URL",
+    "POSTGRES_URL_NON_POOLING",
+    "POSTGRES_URL_NO_SSL",
+    "POSTGRES_USER",
+    "POSTGRES_PASSWORD",
+    "POSTGRES_HOST",
+    "POSTGRES_DATABASE",
+    "PGHOST",
+    "PGHOST_UNPOOLED",
+    "PGDATABASE",
+    "PGUSER",
+    "PGPASSWORD",
+    "AUTH_SECRET",
+    "ADMIN_EMAIL",
+    "ADMIN_PASSWORD",
+    "ADMIN_NAME",
+    "NEXT_PUBLIC_APP_URL",
+    "NEXT_PUBLIC_ADMIN_URL",
+    "NEXT_PUBLIC_EXAM_URL",
+    "NEXT_PUBLIC_PENGAWAS_URL",
+    "BLOB_READ_WRITE_TOKEN",
+    "BLOB_STORE_ID",
+    "BLOB_WEBHOOK_PUBLIC_KEY",
+    "NEON_PROJECT_ID",
+    "NEON_AUTH_BASE_URL",
+    "VITE_NEON_AUTH_URL"
+  ],
+  "tasks": {
+    "dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "build": {
+      "dependsOn": [
+        "^build"
+      ],
+      "outputs": [
+        ".next/**",
+        "!.next/cache/**",
+        "dist/**"
+      ]
+    },
+    "lint": {
+      "dependsOn": [
+        "^lint"
+      ]
+    },
+    "typecheck": {
+      "dependsOn": [
+        "^typecheck"
+      ]
+    }
+  }
+}

@@ -1,0 +1,61 @@
+{
+  "name": "olimpiade-fisika",
+  "private": true,
+  "version": "1.0.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "setup": "node scripts/setup-v2.mjs",
+    "postinstall": "prisma generate || true",
+    "setup:db": "npm run db:generate && npm run db:push && npm run db:seed",
+    "secret": "node scripts/make-secret.mjs",
+    "dev": "npm run db:generate && npm run db:push && turbo dev",
+    "dev:admin": "npm run db:generate && npm run db:push && npm run dev --workspace=@seleksi/admin",
+    "dev:exam": "npm run db:generate && npm run db:push && npm run dev --workspace=@seleksi/exam",
+    "dev:pengawas": "npm run db:generate && npm run db:push && npm run dev --workspace=@seleksi/pengawas",
+    "build": "turbo build",
+    "build:admin": "npm run build --workspace=@seleksi/admin",
+    "build:exam": "npm run build --workspace=@seleksi/exam",
+    "build:pengawas": "npm run db:generate && npm run build --workspace=@seleksi/pengawas",
+    "vercel-build:admin": "npm run db:generate && npm run build --workspace=@seleksi/admin",
+    "vercel-build:exam": "npm run db:generate && npm run build --workspace=@seleksi/exam",
+    "vercel-build:pengawas": "npm run db:generate && npm run build --workspace=@seleksi/pengawas",
+    "lint": "turbo lint",
+    "typecheck": "turbo typecheck",
+    "clean": "node scripts/clean.mjs",
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push",
+    "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy",
+    "db:studio": "prisma studio",
+    "db:seed": "node scripts/seed-admin.mjs",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:push": "prisma db push",
+    "prisma:studio": "prisma studio",
+    "install:easy": "npm install && npm run setup:local",
+    "start:local": "npm run dev",
+    "prisma:deploy": "prisma migrate deploy",
+    "dev:fast": "turbo dev",
+    "setup:local": "npm run db:generate && npm run db:push && npm run db:seed",
+    "repair:db": "npm run db:generate && npm run db:push && npm run db:seed",
+    "db:reset:local": "prisma migrate reset --force && npm run db:seed"
+  },
+  "devDependencies": {
+    "turbo": "^2.5.0",
+    "typescript": "^5.8.0",
+    "prisma": "^6.5.0"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "npm@10.9.2",
+  "prisma": {
+    "schema": "packages/database/prisma/schema.prisma"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.5.0"
+  }
+}
